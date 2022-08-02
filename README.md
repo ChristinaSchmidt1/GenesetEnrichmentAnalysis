@@ -7,7 +7,7 @@ GSE methods have been developed to find dysregulated groups of genes using gene 
 ## Gene Sets
 The biggest resource to capitalise on gene sets is the Molecular signatures database (MsigDB). This gene set collection extracted signatures from original research publications and imports entire collections such as Gene ontology (GO) or the Kyoto encyclopedia of genes and genomes (KEGG).
 
-Here I downloaded different gene sets from the MSigDB I commonly use (Biocarta, Reactome, KEGG, Hallmarks and GO-terms), as well as a gene set of metabolic pathways based on Recon2 that has been developed aspart of the work of Gaude et. al. 
+Here I downloaded different gene sets from the MSigDB I commonly use (Biocarta, Reactome, KEGG, Hallmarks and GO-terms), as well as a gene set of metabolic pathways based on Recon2 that has been developed aspart of the work of [Gaude et al](https://www.nature.com/articles/ncomms13041#Sec16). 
 
 ## GSEA
 Gene Set Enrichment Analysis (GSEA) is used to understand small coordinated changes, meaning it detects gene sets where most of the genes of this gene set change in a coordinated way. This determines whether members of the gene set are randomly distributed troughout the ranked list or primarily found on the top or bottom.

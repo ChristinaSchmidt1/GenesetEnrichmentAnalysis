@@ -1,0 +1,125 @@
+---
+title: "Gene Sets"
+author: "Christina Schmidt"
+date: '2022-08-02'
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+editor_options:
+  chunk_output_type: console
+---
+
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(rmarkdown)
+```
+# Gene Sets
+Gene set collections of biological pathways and/or molecular networks are used to perform geneset enrichment methods.\
+The biggest resource to capitalise on gene sets is the Molecular signatures database (MsigDB). This gene set collection extracted signatures from original research publications and imports entire collections such as Gene ontology (GO) or the Kyoto encyclopedia of genes and genomes (KEGG).\
+\
+Here I downloaded different gene sets from the MSigDB I commonly use (Biocarta, Reactome, KEGG, Hallmarks and GO-terms), as well as a gene set of metabolic pathways based on Recon2 that has been developed aspart of the work of [Gaude et al](https://www.nature.com/articles/ncomms13041#Sec16).\
+\
+
+## Load the gene sets
+All the gene sets have human gene names and are either .csv files or .gmt files.\
+Additionally to the gene set name ("term") and the gene name ("gene"), we will add:\
+|  1. Add information on the number of genes present in a gene set.\
+|  2. Translation to mouse if needed.Of course some human genes are not conserved in mouse (and the other way around) and hence the pathway lists may become smaller.This was done using [scibiomart](https://github.com/ArianeMora/scibiomart/tree/1.0.0), which is based on [biomaRt](https://www.bioconductor.org/packages/release/bioc/vignettes/biomaRt/inst/doc/biomaRt.html).\
+|  3. Moreover, for the metabolic pathways, we also add the information weather a metabolic enzyme is part of multiple pathways or if it is unique for the pathway. This is important for promiscuity correction as discussed by Gaude et all.
+
+```{r, warning=FALSE}
+# Here is the function I wrote to load the .gmt or .csv file including the gene set of interest
+# @param File: Is either "gmt" or "csv" depending of the InputFile type that will be loaded
+# @param InputFile: "FileName.csv" or "FileName.gmt"
+# @param GenesetName: Name of the gene set that is loaded, e.g. "KEGG"
+# @param Species: Is either "Mouse" or "Human" depending on the gene names required for the analysis
+
+Load_GeneSet <- function(File, InputFile, GenesetName, Species="Human"){
+  #Open the gmt or csv file:
+  if(File=="gmt"){
+    library(GSEABase)
+    gmtfile <- InputFile
+    genesets = GSEABase::getGmt(con = gmtfile)
+    genesets = unlist(genesets)
+    
+    gene_to_term =plyr::ldply(genesets,function(geneset){
+      temp <- geneIds(geneset)
+      temp2 <- setName(geneset)
+      temp3 <- as.data.frame(cbind(temp,rep(temp2,length(temp))))
+      },.progress = plyr::progress_text())
+    names(gene_to_term) <- c("gene","term")
+    return(gene_to_term[complete.cases(gene_to_term),])
+    DF <- gene_to_term
+  }
+  else if(File=="csv"){
+   DF <- read.csv(paste(InputFile))
+  }
+  else{
+    paste("File is either gmt or csv and InputFile type needs to match File")
+  }
+  #Add the number of genes present in each pathway
+  DF$Count <- 1
+  DF_Mean <- aggregate(DF$Count, by=list(term=DF$term), FUN=sum)%>%
+    rename("Genes_in_Pathway"="x")
+  DF <- merge(x= DF[,-3], y=DF_Mean,by="term", all.x=TRUE)
+  #Translate the gene names to mouse if needed
+  if(Species=="Human"){
+  }
+  else if(Species=="Mouse"){
+    
+  }
+  else{
+    paste("Please select species as either Mouse or Human")
+  }
+  #Return and save the DF as .csv
+  dir.create("Output_GeneSets")
+  write.csv(DF, paste("Output_GeneSets/", GenesetName, ".csv"))
+  Output <- DF
+}
+
+
+
+
+
+
+
+MetabolicSig <-Load_GeneSet(File="csv", 
+                InputFile="Input_GeneSets/41467_2016_BFncomms13041_MOESM340_ESM.csv", 
+                GenesetName="MetabolicSignature")
+
+# For the metabolic signature I will also add the information for promiscuity correction as described by Gaude et all:
+Correction_Metabolic_Signature <- read.csv("Input_GeneSets/41467_2016_BFncomms13041_MOESM341_ESM.csv")%>% 
+    mutate(Unique = case_when(associated_Pathways =="1" ~ 'Unique',
+                                  TRUE ~ 'In multiple Pathways'))
+MetabolicSig <-merge(x=MetabolicSig, y=Correction_Metabolic_Signature, by.x ="gene", by.y="external_gene_name", all.x=TRUE)
+
+#save!
+
+
+
+
+#Maybe check out biomart again cause maybe that would be better than having to use reticulate!
+
+#Install and download the package
+library(reticulate)
+#py_install("scibiomart", pip = TRUE)# install scibiomart
+scibiomart <- import("scibiomart")# import scibiomart
+
+# Get the mapping to gene IDs
+sb <- scibiomart$SciBiomart()
+sb$set_mart('ENSEMBL_MART_ENSEMBL')
+sb$set_dataset('hsapiens_gene_ensembl')
+Hum_to_Mus <- sb$run_query(NULL, c('ensembl_gene_id', 'external_gene_name', 'mmusculus_homolog_ensembl_gene'))
+Hum_to_Mus <- Hum_to_Mus %>%
+  unnest(c(external_gene_name, mmusculus_homolog_ensembl_gene))
+
+
+```
+
+
+

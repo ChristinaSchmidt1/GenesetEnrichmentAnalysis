@@ -39,7 +39,8 @@ Additionally to the gene set name ("term") and the gene name ("gene"), we will a
 # @param GenesetName: Name of the gene set that is loaded, e.g. "KEGG"
 # @param Species: Is either "Mouse" or "Human" depending on the gene names required for the analysis
 
-Load_GeneSet <- function(File, InputFile, GenesetName, Species="Human"){
+Load_GeneSet <- function(File, InputFile, GenesetName, Species="Human", 
+                         Save=FALSE){
   #Open the gmt or csv file:
   if(File=="gmt"){
     library(GSEABase)
@@ -77,9 +78,17 @@ Load_GeneSet <- function(File, InputFile, GenesetName, Species="Human"){
     paste("Please select species as either Mouse or Human")
   }
   #Return and save the DF as .csv
+  if(Save==FALSE){
+    Output <- DF
+  }
+  else if(Save==TRUE){
   dir.create("Output_GeneSets")
   write.csv(DF, paste("Output_GeneSets/", GenesetName, ".csv"))
   Output <- DF
+  }
+  else{
+    paste("Please select Save=TRUE or Save=FALSE")
+  }
 }
 
 
@@ -118,6 +127,27 @@ Hum_to_Mus <- sb$run_query(NULL, c('ensembl_gene_id', 'external_gene_name', 'mmu
 Hum_to_Mus <- Hum_to_Mus %>%
   unnest(c(external_gene_name, mmusculus_homolog_ensembl_gene))
 
+library(biomaRt)
+require("biomaRt")
+human <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+ensembl <- useEnsembl(biomart="ensembl", dataset="hsapiens_gene_ensembl")
+
+mogenesV2 = getLDS(attributes = c("hgnc_symbol"), filters = "hgnc_symbol", values = x , mart = human, attributesL = c("mgi_symbol"), martL = mouse, uniqueRows=T)
+
+
+convertHumanGeneList <- function(x){
+require("biomaRt")
+human = useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+mouse = useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+genesV2 = getLDS(attributes = c("hgnc_symbol"), filters = "hgnc_symbol", values = x , mart = human, attributesL = c("mgi_symbol"), martL = mouse, uniqueRows=T)
+humanx <- unique(genesV2[, 2])
+# Print the first 6 genes found to the screen
+print(nrow(x))
+print(nrow(humanx))
+return(humanx)
+}
+
+test <- convertHumanGeneList(MetabolicSig[,1])
 
 ```
 

@@ -16,49 +16,63 @@ editor_options:
 
 ```{r }
 ## Establish function 
+# @param DoGSEA: TRUE or FALSE weather GSEA analysis should be performed. If TRUE, "InputData" and "GeneSet" has to be provided. If FALSE, "FileName" of GSEA results has to be provided. The file needs to be a .csv file.
 # @param InputData: Must include column "Symbol" with gene names, column "rank" with numeric values used for the ranking (either Log2FC or tval), column "p.adj with the adjusted p-value and column "Log2FC" with the Log2FC.
 # @param GeneSet: The gene set you want to use to perform the GSEA.To run multiple gene sets together use Pathways=rbind(KEGG, Reactome, Biocarta, Hallmarks)
-# @param Save: 
-# @param OutputfileName: 
-# @param VolcanoPlotColour: "Unique" or "Standard"
+# @param Save: Parameter that defines if the GSEA output DF is saved. TRUE or FALSE.
+# @param FileName: "FileName.csv". Only needed if Save = TRUE.
+# @param VolcanoPlots: Parameter that defines if VolcanoPlots should be made. TRUE or FALSE
+# @param VolcanoPlotColour: "Unique" or "Standard" or "Both". "Unique" refers to Volcano plots colour coded for genes that are unique in this pathway or part of multiple pathways. "Standard" colour codes Volcano plots depending on significance and Log2FC. If you want to plot both option choose "Both".
+#@param LollipopGraphs: Parameter that defines if Lollipop graph should be made. TRUE or FALSE
+#@param Lollipop_p.adj: Parameter for p.adj cutoff that will be included on the lollipop graph.Default 0.25.
+#@param Lollipop_NES: Parameter for NES cutoff that will be included on the lollipop graph. Default 0.5.
 
-DoGSEA_Viz <-function(InputData, GeneSet, Save=TRUE, OutputfileName, VolcanoPlots=TRUE, VolcanoPlotColour="Standard"){
-  #Load libraries
-  library(fgsea)
+DoGSEA_Viz <-function(DoGSEA=TRUE, InputData, GeneSet, Save=TRUE, FileName, VolcanoPlots=TRUE, VolcanoPlotColour="Standard", LollipopGraphs=TRUE, Lollipop_p.adj =0.25, Lollipop_NES = 0.5){
+  if(DoGSEA==TRUE){
+    #Load libraries
+    library(fgsea)
   
-  #Prepare ranked data matrix for GSEA:
-  Column_Gene <- as.character(InputData$Symbol)#Ensembl name
-  Column_rank <- as.numeric(InputData$rank)
-  MyData_Extracted <- data.frame(cbind(Column_Gene, Column_rank), stringsAsFactors = F)
-  MyData_Extracted$Column_rank <- as.numeric(MyData_Extracted$Column_rank)
-  rank <- as.numeric(MyData_Extracted$Column_rank)#Make the data into a vector
-  names(rank) <- MyData_Extracted$Column_Gene
+    #Prepare ranked data matrix for GSEA:
+    Column_Gene <- as.character(InputData$Symbol)#Ensembl name
+    Column_rank <- as.numeric(InputData$rank)
+    MyData_Extracted <- data.frame(cbind(Column_Gene, Column_rank), stringsAsFactors = F)
+    MyData_Extracted$Column_rank <- as.numeric(MyData_Extracted$Column_rank)
+    rank <- as.numeric(MyData_Extracted$Column_rank)#Make the data into a vector
+    names(rank) <- MyData_Extracted$Column_Gene
   
-  #Load the gene sets
-  pathways <- GeneSet
-  pathway_list <- list()
-  for(pathway in unique(pathways$term)){
-    pathway_list[[pathway]] <- as.character(pathways$gene[pathways$term == pathway])
-  } 
+    #Load the gene sets
+    pathways <- GeneSet
+    pathway_list <- list()
+    for(pathway in unique(pathways$term)){
+      pathway_list[[pathway]] <- as.character(pathways$gene[pathways$term == pathway])
+    } 
   
-  #Run the GSEA analysis
-  gsea_result <- fgsea(pathways = pathway_list, stats = rank, nperm = 1000)
+    #Run the GSEA analysis
+    gsea_result <- fgsea(pathways = pathway_list, stats = rank, nperm = 1000)
   
-  #Add pathway information (% of genes in pathway detected)
-  gsea_result <- merge(x= gsea_result, y=pathways[,-2],by.x="pathway", by.y="term", all.x=TRUE)
-  gsea_result$Percentage_of_Pathway_detected <-round(((gsea_result$size/gsea_result$Genes_in_Pathway)*100),digits=2)
-  
-  #Safe file and output results
-  if(Save==FALSE){
+    #Add pathway information (% of genes in pathway detected)
+    gsea_result <- merge(x= gsea_result, y=pathways[,-2],by.x="pathway", by.y="term", all.x=TRUE)
+    gsea_result$Percentage_of_Pathway_detected <-round(((gsea_result$size/gsea_result$Genes_in_Pathway)*100),digits=2)
+    gsea_result <- gsea_result[!duplicated(gsea_result$pathway),]
+    
+    #Safe file and output results
+    if(Save==FALSE){
+      Output <- gsea_result
+    }
+    else if(Save==TRUE){
+    dir.create("OutputDataTable")
+    write_csv(gsea_result[,c(-8)], file=paste("OutputDataTable/",FileName))
     Output <- gsea_result
+    }
+    else{
+      paste("Please select Save=TRUE or Save=FALSE")
+    }
   }
-  else if(Save==TRUE){
-  dir.create("OutputDataTable")
-  write_csv(gsea_result[,c(-8)], file=paste("OutputDataTable/",OutputfileName))
-  Output <- gsea_result
+  else if (DoGSEA==FALSE){
+    gsea_result <-read.csv(FileName)
   }
   else{
-    paste("Please select Save=TRUE or Save=FALSE")
+    paste("Choose DoGSEA= TRUE or DoGSEA=FALSE")
   }
   
   #Do individual Volcano plots of each term in the gene sets
@@ -83,10 +97,11 @@ DoGSEA_Viz <-function(InputData, GeneSet, Save=TRUE, OutputfileName, VolcanoPlot
                                         pCutoff = 0.05,
                                         FCcutoff = 0.5,
                                         pointSize = 3,
-                                        labSize = 1,
+                                        labSize = 2,
                                         titleLabSize = 16,
-                                        col=c("#703200", "#9C5900", "#9C5900", "#B38614"),
-                                        colAlpha = 0.5,
+                                        col=c("#00132D", "#698198", "#698198", "#C9A959"),
+                                        legendLabels=c('No Change','p.adj > 0.05 or','-0.5 < Log2FC <0.5','-0.5 > Log2FC > 0.5 & p.adj <0.05'),
+                                        colAlpha = 0.8,
                                         title=paste(i),
                                         subtitle=paste("NES=",GSEA_Score$NES, ", p.adj=",GSEA_Score$padj),
                                         caption = paste0("total = ", nrow(Volcano1), " genes of ", nrow(Pathway), " genes in pathway"),
@@ -114,7 +129,7 @@ DoGSEA_Viz <-function(InputData, GeneSet, Save=TRUE, OutputfileName, VolcanoPlot
     for(i in Terms){
       GeneSet_C <- pathways
       for(k in 1:length(GeneSet_C$gene)){
-      GeneSet_C$associated_Pathways[k] <- sum(which(GeneSet_C$gene==GeneSet_C$gene[k]))
+      GeneSet_C$associated_Pathways[k] <- sum((GeneSet_C$gene==GeneSet_C$gene[k]))
       }
       GeneSet_C <-GeneSet_C%>% 
         mutate(Unique = case_when(associated_Pathways =="1" ~ 'Unique',
@@ -152,7 +167,119 @@ DoGSEA_Viz <-function(InputData, GeneSet, Save=TRUE, OutputfileName, VolcanoPlot
                                         pCutoff = 0.05,
                                         FCcutoff = 0.5,
                                         pointSize = 3,
-                                        labSize = 1,
+                                        labSize = 2,
+                                        titleLabSize = 16,
+                                        shapeCustom = keyvals.shape,
+                                        colCustom = keyvals,
+                                        colAlpha = 0.5,
+                                        title=paste(i),
+                                        subtitle=paste("NES=",GSEA_Score$NES, ", p.adj=",GSEA_Score$padj),
+                                        caption = paste0("total = ", nrow(Volcano1), " genes of ", nrow(Pathway), " genes in pathway"),
+                                        xlim = c((((Reduce(min,Volcano1$Log2FC))))-0.5,(((Reduce(max,Volcano1$Log2FC))))+0.5),
+                                        ylim = c(0,((-log10(Reduce(min,Volcano1$p.adj))))+0.1),
+                                        cutoffLineType = "dashed",
+                                        cutoffLineCol = "black",
+                                        cutoffLineWidth = 0.5,
+                                        legendPosition = 'right',
+                                        legendLabSize = 12,
+                                        legendIconSize = 5.0)
+        dir.create("OutputFigures")
+        dir.create("OutputFigures/GSEA_VolcanoPlots_Unique")
+        ggsave(file=paste("OutputFigures/GSEA_VolcanoPlots_Unique/", i, ".pdf"), plot=VolcanoPlot, width=10, height=8)
+        plot(VolcanoPlot)
+      }
+    }
+  }
+   if(VolcanoPlots==TRUE & VolcanoPlotColour=="Both"){
+    library(ggrepel)
+    library(EnhancedVolcano)
+    
+    #Make the Standard Volcano plots:
+    Terms <- pathways[!duplicated(pathways$term),]
+    Terms <- Terms$term
+    for(i in Terms){
+      Pathway <- subset(GeneSet, term == paste(i))
+      Volcano1  <- merge(x=Pathway,y=InputData, by.x="gene", by.y="Symbol", all.x=TRUE)%>%
+        na.omit()
+      GSEA_Score <- subset(gsea_result[,c(-8)], pathway == paste(i))
+      if(nrow(Volcano1)>=1){
+        VolcanoPlot <- EnhancedVolcano (Volcano1,
+                                        lab = Volcano1$gene,#gene name
+                                        x = "Log2FC",#Log2FC
+                                        y = "p.adj",#p-value or q-value
+                                        xlab = "Log2FC",
+                                        ylab = bquote(~-Log[10]~`p.adj`),#(~-Log[10]~adjusted~italic(P))
+                                        pCutoff = 0.05,
+                                        FCcutoff = 0.5,
+                                        pointSize = 3,
+                                        labSize = 2,
+                                        titleLabSize = 16,
+                                        col=c("#00132D", "#698198", "#698198", "#C9A959"),
+                                        legendLabels=c('No Change','p.adj > 0.05 or','-0.5 < Log2FC <0.5','-0.5 > Log2FC > 0.5 & p.adj <0.05'),
+                                        colAlpha = 0.8,
+                                        title=paste(i),
+                                        subtitle=paste("NES=",GSEA_Score$NES, ", p.adj=",GSEA_Score$padj),
+                                        caption = paste0("total = ", nrow(Volcano1), " genes of ", nrow(Pathway), " genes in pathway"),
+                                        xlim = c((((Reduce(min,Volcano1$Log2FC))))-0.5,(((Reduce(max,Volcano1$Log2FC))))+0.5),
+                                        ylim = c(0,((-log10(Reduce(min,Volcano1$p.adj))))+0.1),
+                                        cutoffLineType = "dashed",
+                                        cutoffLineCol = "black",
+                                        cutoffLineWidth = 0.5,
+                                        legendPosition = 'right',
+                                        legendLabSize = 12,
+                                        legendIconSize = 5.0)
+        dir.create("OutputFigures")
+        dir.create("OutputFigures/GSEA_VolcanoPlots_Standard")
+        ggsave(file=paste("OutputFigures/GSEA_VolcanoPlots_Standard/", i, ".pdf"), plot=VolcanoPlot, width=10, height=8)
+        plot(VolcanoPlot)
+        
+      }
+    }
+     #Make the Unique Volcano plots
+    Terms <- pathways[!duplicated(pathways$term),]
+    Terms <- Terms$term
+    for(i in Terms){
+      GeneSet_C <- pathways
+      for(k in 1:length(GeneSet_C$gene)){
+      GeneSet_C$associated_Pathways[k] <- sum((GeneSet_C$gene==GeneSet_C$gene[k]))
+      }
+      GeneSet_C <-GeneSet_C%>% 
+        mutate(Unique = case_when(associated_Pathways =="1" ~ 'Unique',
+                                  TRUE ~ 'In multiple Pathways'))
+      Pathway <- subset(GeneSet_C, term == paste(i))
+      Volcano1  <- merge(x=Pathway,y=InputData, by.x="gene", by.y="Symbol", all.x=TRUE)%>%
+        na.omit()
+      GSEA_Score <- subset(gsea_result[,c(-8)], pathway == paste(i))
+      
+      #Prepare the colour scheme and symbols:
+      keyvals <- ifelse(
+        Volcano1$Unique == "Unique", "red",
+        ifelse(Volcano1$Unique == "In multiple Pathways", "blue",
+              "black"))
+      names(keyvals)[is.na(keyvals)] <- "black"
+      names(keyvals)[keyvals == 'black'] <- "NA"
+      names(keyvals)[keyvals == 'red'] <- "Unique"
+      names(keyvals)[keyvals == 'blue'] <- "In multiple Pathways"
+
+      keyvals.shape <- ifelse(
+      Volcano1$Unique == "Unique", 19,
+        ifelse(Volcano1$Unique == "In multiple Pathways", 18, 3))
+      keyvals.shape[is.na(keyvals.shape)] <- 3
+      names(keyvals.shape)[keyvals.shape == 3] <- 'NA'
+      names(keyvals.shape)[keyvals.shape == 19] <- 'Unique'
+      names(keyvals.shape)[keyvals.shape == 18] <- 'In multiple Pathways'
+      
+      if(nrow(Volcano1)>=1){
+        VolcanoPlot <- EnhancedVolcano (Volcano1,
+                                        lab = Volcano1$gene,#gene name
+                                        x = "Log2FC",#Log2FC
+                                        y = "p.adj",#p-value or q-value
+                                        xlab = "Log2FC",
+                                        ylab = bquote(~-Log[10]~`p.adj`),#(~-Log[10]~adjusted~italic(P))
+                                        pCutoff = 0.05,
+                                        FCcutoff = 0.5,
+                                        pointSize = 3,
+                                        labSize = 2,
                                         titleLabSize = 16,
                                         shapeCustom = keyvals.shape,
                                         colCustom = keyvals,
@@ -178,11 +305,52 @@ DoGSEA_Viz <-function(InputData, GeneSet, Save=TRUE, OutputfileName, VolcanoPlot
   else{
     paste("No Volcano plots generated")
   }
-  #Make lollipop graphs
-  
+  #Make Lollipop graphs
+  if(LollipopGraphs==TRUE){
+    library(viridis)
+    #Select the data to plot:
+    GSEA_Select <- gsea_result%>%
+      subset(padj <= paste(Lollipop_p.adj) & (NES>= Lollipop_NES | NES <= -Lollipop_NES))
+    GSEA_Select$p.adj_round <- round(GSEA_Select$padj, digits = 2)
+      
+    #Make the plot:
+    Dotplot1 <-ggplot(GSEA_Select, aes(x=reorder(pathway, + NES), y=NES, label=p.adj_round)) + 
+    geom_point(stat='identity', aes(size= NES, col=padj))  +
+    scale_color_viridis(option="C", "padj")+
+    scale_fill_viridis(option="C","padj")+
+    geom_segment(aes(y = 0, 
+                   x = pathway, 
+                   yend = NES,
+                   xend = pathway), 
+               color = "black") +
+   scale_size(name="NES",range = c(2,16))+
+    geom_text(color="black", size=2) +
+    labs(title="GSEA",
+        subtitle=paste("padj <= ",Lollipop_p.adj, " & ",-Lollipop_NES, " =>NES>= ", Lollipop_NES)) + 
+    #ylim(-2.5,2.5) +
+    theme_bw() +
+    coord_flip()+
+    theme(plot.title = element_text(color = "black", size = 12, face = "bold"),
+          plot.subtitle = element_text(color = "black", size=10),
+          plot.caption = element_text(color = "black",size=9, face = "italic", hjust = 2.5))+
+    labs(y="NES", x="")
+    
+    dir.create("OutputFigures")
+    dir.create("OutputFigures/GSEA_LollipopGraphs") 
+    ggsave(paste("OutputFigures/GSEA_LollipopGraphs/LollipopGraph_GSEA_padj",Lollipop_p.adj,"NES",Lollipop_NES, ".pdf"), plot=Dotplot1, width=10, height=10)
+    plot(Dotplot1)  
+  }
+  else{
+    paste("No Lollipop graphs generated")
+  }
   #Output
   Output <- gsea_result
 }
 
+
+#Prepare InputData
+DF_Input <- DF%>%
+  rename("rank"="t.ord",
+         "p.adj"="q.ord")
 
 ```
